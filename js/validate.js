@@ -1,6 +1,6 @@
 import { db, doc, getDoc, CERT_COLLECTION } from "./firebase-init.js";
 
-// Works whether the visitor arrived at /validation/SERIAL (via the
+// Works whether the visitor arrived at /verify/SERIAL (via the
 // GitHub Pages 404 fallback trick) or at validate.html?id=SERIAL.
 function getIdFromLocation(){
   const params = new URLSearchParams(window.location.search);
@@ -8,7 +8,7 @@ function getIdFromLocation(){
 
   const segments = window.location.pathname.split("/").filter(Boolean);
   const last = segments.pop();
-  if (!last || last.toLowerCase() === "validation" || last.toLowerCase().endsWith(".html")){
+  if (!last || last.toLowerCase() === "verify" || last.toLowerCase().endsWith(".html")){
     return null;
   }
   return decodeURIComponent(last);

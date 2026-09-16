@@ -26,5 +26,5 @@ export const CERT_COLLECTION = "certificates";
 
 // Builds the QR / verification URL for a given serial number.
 export function buildValidationUrl(serialNumber){
-  return `${SITE_BASE_URL}/validation/${encodeURIComponent(serialNumber)}`;
+  return `${SITE_BASE_URL}/verify/${encodeURIComponent(serialNumber)}`;
 }

@@ -27,13 +27,76 @@ function downloadBlob(blob, filename){
   URL.revokeObjectURL(url);
 }
 
-async function qrDataUrl(text){
-  // qrcode(0, "M"): typeNumber 0 = auto-size to fit the data, "M" = medium error correction.
-  const qr = window.qrcode(0, "M");
+function downloadDataUrl(dataUrl, filename){
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// Builds a real PNG (via an in-memory <canvas>, not attached to the page)
+// from the QR module grid that js/vendor/qrcode-generator.js computes.
+// Nothing here depends on any external CDN or network request.
+function qrDataUrl(text, cellSize = 8, margin = 4){
+  const qr = window.qrcode(0, "M"); // typeNumber 0 = auto-size, "M" = medium error correction
   qr.addData(text);
   qr.make();
-  // cellSize 8, margin 4 gives a crisp ~320px PNG at print resolution.
-  return qr.createDataURL(8, 4);
+
+  const count = qr.getModuleCount();
+  const size = count * cellSize + margin * 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = "#16213A";
+  for (let row = 0; row < count; row++){
+    for (let col = 0; col < count; col++){
+      if (qr.isDark(row, col)){
+        ctx.fillRect(margin + col * cellSize, margin + row * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+  return canvas.toDataURL("image/png");
+}
+
+// "Participant Name-Serial.png", with characters that can't appear in a
+// filename stripped out.
+function sanitizeFilenamePart(s){
+  return String(s || "").replace(/[\\/:*?"<>|]/g, "").trim();
+}
+function qrFilename(participantName, serialNumber){
+  const p = sanitizeFilenamePart(participantName) || "Participant";
+  const s = sanitizeFilenamePart(serialNumber) || "Serial";
+  return `${p}-${s}.png`;
+}
+
+async function zipRecords(records, zipFilename, status){
+  if (!records.length){
+    setStatus(status, "Nothing to include in this ZIP.", false);
+    return;
+  }
+  setStatus(status, `Building ZIP of ${records.length} QR code(s)…`, true);
+  try{
+    const zip = new window.JSZip();
+    records.forEach((r) => {
+      const serial = r.serialNumber || r.id;
+      const dataUrl = qrDataUrl(buildValidationUrl(serial));
+      const base64 = dataUrl.split(",")[1];
+      zip.file(qrFilename(r.participantName, serial), base64, { base64: true });
+    });
+    const blob = await zip.generateAsync({ type: "blob" });
+    downloadBlob(blob, zipFilename);
+    setStatus(status, "ZIP downloaded.", true);
+  }catch(ex){
+    console.error(ex);
+    setStatus(status, "Could not build the ZIP file.", false);
+  }
 }
 
 /* ---------------------------------------------------------
@@ -81,57 +144,58 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 });
 
 /* ---------------------------------------------------------
-   QR modal
+   Add single certificate — two separate actions
 --------------------------------------------------------- */
-const qrModal = $("qr-modal");
-$("qr-modal-close").addEventListener("click", () => hide(qrModal));
-
-async function openQrModal(serialNumber, title){
-  const url = buildValidationUrl(serialNumber);
-  const dataUrl = await qrDataUrl(url);
-  $("qr-modal-title").textContent = title || "Certificate QR code";
-  $("qr-modal-img").src = dataUrl;
-  $("qr-modal-url").textContent = url;
-  const dl = $("qr-modal-download");
-  dl.href = dataUrl;
-  dl.setAttribute("download", `${serialNumber}.gif`);
-  show(qrModal);
+function readAddForm(){
+  return {
+    eventName: $("f-event").value.trim(),
+    participantName: $("f-participant").value.trim(),
+    session: $("f-session").value.trim(),
+    serialNumber: $("f-serial").value.trim(),
+    studentId: $("f-studentid").value.trim(),
+    authenticity: document.querySelector('input[name="auth"]:checked').value
+  };
 }
 
-/* ---------------------------------------------------------
-   Add single certificate
---------------------------------------------------------- */
+// "Append data" — saves the record. Does not touch the QR code.
 $("add-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const status = $("add-status");
-  const serialNumber = $("f-serial").value.trim();
+  const record = readAddForm();
 
-  if (!serialNumber){
+  if (!record.serialNumber){
     setStatus(status, "Serial number is required.", false);
     return;
   }
 
-  const record = {
-    eventName: $("f-event").value.trim(),
-    participantName: $("f-participant").value.trim(),
-    session: $("f-session").value.trim(),
-    serialNumber,
-    studentId: $("f-studentid").value.trim(),
-    authenticity: document.querySelector('input[name="auth"]:checked').value,
-    createdAt: new Date().toISOString()
-  };
-
   try{
-    await setDoc(doc(db, CERT_COLLECTION, serialNumber), record, { merge: true });
-    setStatus(status, "Saved. Generating QR code…", true);
-    await openQrModal(serialNumber, record.participantName || serialNumber);
-    e.target.reset();
-    document.querySelector('input[name="auth"][value="Valid"]').checked = true;
-    setStatus(status, "Certificate saved.", true);
+    await setDoc(doc(db, CERT_COLLECTION, record.serialNumber), { ...record, createdAt: new Date().toISOString() }, { merge: true });
+    setStatus(status, "Certificate saved. You can now download its QR code.", true);
     loadRecords();
   }catch(ex){
     console.error(ex);
     setStatus(status, "Could not save this record. Check your Firestore rules and connection.", false);
+  }
+});
+
+// "Download QR" — generates and downloads the QR for whatever is
+// currently in the form, independent of saving.
+$("download-qr-btn").addEventListener("click", () => {
+  const status = $("add-status");
+  const record = readAddForm();
+
+  if (!record.serialNumber || !record.participantName){
+    setStatus(status, "Fill in at least Participant name and Serial number to generate a QR code.", false);
+    return;
+  }
+
+  try{
+    const dataUrl = qrDataUrl(buildValidationUrl(record.serialNumber));
+    downloadDataUrl(dataUrl, qrFilename(record.participantName, record.serialNumber));
+    setStatus(status, "QR code downloaded.", true);
+  }catch(ex){
+    console.error(ex);
+    setStatus(status, "Could not generate the QR code.", false);
   }
 });
 
@@ -162,6 +226,7 @@ function normalizeHeader(h){
 }
 
 let parsedRows = [];
+let lastUploadedBatch = [];
 
 $("csv-input").addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -180,6 +245,7 @@ $("csv-input").addEventListener("change", (e) => {
     }).filter((r) => r.serialNumber);
 
     parsedRows = rows;
+    hide($("csv-zip-btn"));
     renderCsvPreview(rows);
   };
   reader.readAsText(file);
@@ -219,6 +285,7 @@ $("csv-upload-btn").addEventListener("click", async () => {
 
   const CHUNK = 400; // stay under Firestore's 500-write batch limit
   let done = 0;
+  const uploaded = [];
 
   try{
     for (let i = 0; i < parsedRows.length; i += CHUNK){
@@ -229,10 +296,13 @@ $("csv-upload-btn").addEventListener("click", async () => {
         batch.set(ref, { ...row, authenticity: row.authenticity || "Valid", createdAt: new Date().toISOString() }, { merge: true });
       });
       await batch.commit();
+      uploaded.push(...chunk);
       done += chunk.length;
       setStatus(status, `Uploaded ${done} of ${parsedRows.length}…`, true);
     }
     setStatus(status, `Done — ${done} record(s) uploaded.`, true);
+    lastUploadedBatch = uploaded;
+    show($("csv-zip-btn"));
     parsedRows = [];
     $("csv-input").value = "";
     loadRecords();
@@ -240,6 +310,10 @@ $("csv-upload-btn").addEventListener("click", async () => {
     console.error(ex);
     setStatus(status, "Upload stopped early — check your connection and Firestore rules, then retry.", false);
   }
+});
+
+$("csv-zip-btn").addEventListener("click", () => {
+  zipRecords(lastUploadedBatch, "certificate-qr-codes-batch.zip", $("csv-status"));
 });
 
 /* ---------------------------------------------------------
@@ -253,12 +327,41 @@ async function loadRecords(){
   try{
     const snap = await getDocs(collection(db, CERT_COLLECTION));
     allRecords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    renderManageTable(allRecords);
+    populateEventFilter(allRecords);
+    applyManageFilters();
     hide(status);
   }catch(ex){
     console.error(ex);
     setStatus(status, "Could not load records.", false);
   }
+}
+
+function populateEventFilter(records){
+  const select = $("event-filter");
+  const current = select.value;
+  const events = Array.from(new Set(records.map((r) => r.eventName).filter(Boolean))).sort();
+
+  select.innerHTML = '<option value="">All events</option>' +
+    events.map((ev) => `<option value="${ev}">${ev}</option>`).join("");
+
+  if (events.includes(current)) select.value = current;
+}
+
+function applyManageFilters(){
+  const q = $("manage-search").value.trim().toLowerCase();
+  const eventFilter = $("event-filter").value;
+
+  let filtered = allRecords;
+  if (eventFilter){
+    filtered = filtered.filter((r) => r.eventName === eventFilter);
+  }
+  if (q){
+    filtered = filtered.filter((r) =>
+      [r.serialNumber, r.participantName, r.eventName, r.studentId, r.session]
+        .some((v) => String(v || "").toLowerCase().includes(q))
+    );
+  }
+  renderManageTable(filtered);
 }
 
 function renderManageTable(records){
@@ -277,7 +380,7 @@ function renderManageTable(records){
       <td><button class="btn btn-outline qr-btn" style="padding:6px 12px;">QR</button></td>
       <td><button class="btn btn-danger del-btn" style="padding:6px 12px;">Delete</button></td>
     `;
-    tr.querySelector(".qr-btn").addEventListener("click", () => openQrModal(r.serialNumber || r.id, r.participantName));
+    tr.querySelector(".qr-btn").addEventListener("click", () => openQrModal(r));
     tr.querySelector(".del-btn").addEventListener("click", () => deleteRecord(r.id));
     tbody.appendChild(tr);
   });
@@ -288,7 +391,8 @@ async function deleteRecord(id){
   try{
     await deleteDoc(doc(db, CERT_COLLECTION, id));
     allRecords = allRecords.filter((r) => r.id !== id);
-    renderManageTable(allRecords);
+    populateEventFilter(allRecords);
+    applyManageFilters();
   }catch(ex){
     console.error(ex);
     alert("Could not delete this record.");
@@ -296,37 +400,33 @@ async function deleteRecord(id){
 }
 
 $("refresh-btn").addEventListener("click", loadRecords);
+$("manage-search").addEventListener("input", applyManageFilters);
+$("event-filter").addEventListener("change", applyManageFilters);
 
-$("manage-search").addEventListener("input", (e) => {
-  const q = e.target.value.trim().toLowerCase();
-  if (!q){ renderManageTable(allRecords); return; }
-  const filtered = allRecords.filter((r) =>
-    [r.serialNumber, r.participantName, r.eventName, r.studentId, r.session]
-      .some((v) => String(v || "").toLowerCase().includes(q))
-  );
-  renderManageTable(filtered);
+$("zip-all-btn").addEventListener("click", () => {
+  const eventFilter = $("event-filter").value;
+  const records = eventFilter ? allRecords.filter((r) => r.eventName === eventFilter) : allRecords;
+  const filename = eventFilter
+    ? `certificate-qr-codes-${sanitizeFilenamePart(eventFilter)}.zip`
+    : "certificate-qr-codes-all.zip";
+  zipRecords(records, filename, $("manage-status"));
 });
 
-$("zip-all-btn").addEventListener("click", async () => {
-  const status = $("manage-status");
-  if (!allRecords.length){
-    setStatus(status, "No records to export yet.", false);
-    return;
-  }
-  setStatus(status, "Building ZIP of QR codes…", true);
-  try{
-    const zip = new window.JSZip();
-    for (const r of allRecords){
-      const serial = r.serialNumber || r.id;
-      const dataUrl = await qrDataUrl(buildValidationUrl(serial));
-      const base64 = dataUrl.split(",")[1];
-      zip.file(`${serial}.gif`, base64, { base64: true });
-    }
-    const blob = await zip.generateAsync({ type: "blob" });
-    downloadBlob(blob, "certificate-qr-codes.zip");
-    setStatus(status, "ZIP downloaded.", true);
-  }catch(ex){
-    console.error(ex);
-    setStatus(status, "Could not build the ZIP file.", false);
-  }
-});
+/* ---------------------------------------------------------
+   QR preview modal (used from Manage records)
+--------------------------------------------------------- */
+const qrModal = $("qr-modal");
+$("qr-modal-close").addEventListener("click", () => hide(qrModal));
+
+function openQrModal(record){
+  const serialNumber = record.serialNumber || record.id;
+  const url = buildValidationUrl(serialNumber);
+  const dataUrl = qrDataUrl(url);
+  $("qr-modal-title").textContent = record.participantName || serialNumber;
+  $("qr-modal-img").src = dataUrl;
+  $("qr-modal-url").textContent = url;
+  const dl = $("qr-modal-download");
+  dl.href = dataUrl;
+  dl.setAttribute("download", qrFilename(record.participantName, serialNumber));
+  show(qrModal);
+}

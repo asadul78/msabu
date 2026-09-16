@@ -56,7 +56,7 @@
           <div class="panel-title">
             <h2>Add a certificate</h2>
           </div>
-          <p>Creates one record and its QR code. The link on the QR always points to <code>/validation/&lt;serial number&gt;</code>.</p>
+          <p>Creates one record. The link on the QR always points to <code>/verify/&lt;serial number&gt;</code>.</p>
           <form id="add-form">
             <div class="input-row">
               <div class="field">
@@ -91,7 +91,10 @@
                 </div>
               </div>
             </div>
-            <button class="btn btn-primary" type="submit">Save &amp; generate QR</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn btn-primary" type="submit" id="append-data-btn">Append data</button>
+              <button class="btn btn-outline" type="button" id="download-qr-btn">Download QR</button>
+            </div>
             <p id="add-status" class="status-msg hidden"></p>
           </form>
         </div>
@@ -115,6 +118,7 @@
               <table class="data-table" id="csv-preview-table"></table>
             </div>
             <button class="btn btn-primary" id="csv-upload-btn" style="margin-top:16px;">Upload records</button>
+            <button class="btn btn-outline hidden" id="csv-zip-btn" style="margin-top:16px;">Download QR codes for this batch (.zip)</button>
             <p id="csv-status" class="status-msg hidden"></p>
           </div>
         </div>
@@ -125,7 +129,12 @@
         <div class="panel">
           <div class="panel-title">
             <h2>All certificates</h2>
-            <button class="btn btn-outline" id="zip-all-btn">Download all QR codes (.zip)</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <select id="event-filter" class="search-input" style="max-width:220px;">
+                <option value="">All events</option>
+              </select>
+              <button class="btn btn-outline" id="zip-all-btn">Download QR codes (.zip)</button>
+            </div>
           </div>
           <div class="toolbar">
             <input class="search-input" id="manage-search" placeholder="Search by name, ID or serial number">
