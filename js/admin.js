@@ -28,11 +28,12 @@ function downloadBlob(blob, filename){
 }
 
 async function qrDataUrl(text){
-  return await window.QRCode.toDataURL(text, {
-    width: 320,
-    margin: 1,
-    color: { dark: "#16213A", light: "#FFFFFF" }
-  });
+  // qrcode(0, "M"): typeNumber 0 = auto-size to fit the data, "M" = medium error correction.
+  const qr = window.qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  // cellSize 8, margin 4 gives a crisp ~320px PNG at print resolution.
+  return qr.createDataURL(8, 4);
 }
 
 /* ---------------------------------------------------------
@@ -93,7 +94,7 @@ async function openQrModal(serialNumber, title){
   $("qr-modal-url").textContent = url;
   const dl = $("qr-modal-download");
   dl.href = dataUrl;
-  dl.setAttribute("download", `${serialNumber}.png`);
+  dl.setAttribute("download", `${serialNumber}.gif`);
   show(qrModal);
 }
 
@@ -319,7 +320,7 @@ $("zip-all-btn").addEventListener("click", async () => {
       const serial = r.serialNumber || r.id;
       const dataUrl = await qrDataUrl(buildValidationUrl(serial));
       const base64 = dataUrl.split(",")[1];
-      zip.file(`${serial}.png`, base64, { base64: true });
+      zip.file(`${serial}.gif`, base64, { base64: true });
     }
     const blob = await zip.generateAsync({ type: "blob" });
     downloadBlob(blob, "certificate-qr-codes.zip");

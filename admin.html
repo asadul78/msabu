@@ -7,10 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
-<!-- Small, no-build helper libraries loaded straight from a CDN -->
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<!-- Small helper libraries, self-hosted in js/vendor/ (no CDN, so nothing
+     here can be blocked by a network, VPN, or ad-blocker) -->
+<script src="js/vendor/papaparse.min.js"></script>
+<script src="js/vendor/qrcode-generator.js"></script>
+<script src="js/vendor/jszip.min.js"></script>
 </head>
 <body>
 
@@ -153,7 +154,7 @@
     <h3 id="qr-modal-title">Certificate saved</h3>
     <img id="qr-modal-img" alt="QR code">
     <p class="hero-note mono" id="qr-modal-url" style="word-break:break-all;"></p>
-    <a id="qr-modal-download" class="btn btn-primary" download style="width:100%; justify-content:center; margin-top:8px;">Download PNG</a>
+    <a id="qr-modal-download" class="btn btn-primary" download style="width:100%; justify-content:center; margin-top:8px;">Download image</a>
     <button class="btn btn-outline" id="qr-modal-close" style="width:100%; justify-content:center; margin-top:8px;">Close</button>
   </div>
 </div>
