@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<!-- Small, no-build helper libraries loaded straight from a CDN -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+
+<div class="shell">
+  <div class="topbar">
+    <a class="wordmark" href="index.html"><span class="mark">✓</span>Verify — Admin</a>
+    <button id="logout-btn" class="nav-link hidden" style="cursor:pointer;">Log out</button>
+  </div>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="login-wrap" class="login-wrap">
+    <div class="login-card panel">
+      <h2>Admin sign in</h2>
+      <p>Use the admin account you created in Firebase Authentication.</p>
+      <form id="login-form">
+        <div class="field">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" required autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Sign in</button>
+        <p id="login-error" class="status-msg err hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <div id="dash" class="dash hidden">
+    <nav class="side-nav">
+      <button class="tab-btn active" data-tab="add">Add certificate</button>
+      <button class="tab-btn" data-tab="bulk">Bulk upload (CSV)</button>
+      <button class="tab-btn" data-tab="manage">Manage records</button>
+    </nav>
+
+    <div>
+      <!-- ---------- ADD SINGLE ---------- -->
+      <section class="tab-panel active" id="tab-add">
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Add a certificate</h2>
+          </div>
+          <p>Creates one record and its QR code. The link on the QR always points to <code>/validation/&lt;serial number&gt;</code>.</p>
+          <form id="add-form">
+            <div class="input-row">
+              <div class="field">
+                <label for="f-event">Event name</label>
+                <input id="f-event" required placeholder="e.g. Data Analytics Workshop 2026">
+              </div>
+              <div class="field">
+                <label for="f-session">Session</label>
+                <input id="f-session" required placeholder="e.g. Batch 3 / Morning">
+              </div>
+            </div>
+            <div class="input-row">
+              <div class="field">
+                <label for="f-participant">Participant name</label>
+                <input id="f-participant" required placeholder="e.g. Rafiul Islam">
+              </div>
+              <div class="field">
+                <label for="f-studentid">Student ID</label>
+                <input id="f-studentid" required placeholder="e.g. BU-MGT-2201">
+              </div>
+            </div>
+            <div class="input-row">
+              <div class="field">
+                <label for="f-serial">Serial number (used in the QR link)</label>
+                <input id="f-serial" required placeholder="e.g. MSA-2025-2XVPZ" class="mono">
+              </div>
+              <div class="field">
+                <label>Authenticity</label>
+                <div class="pill-select">
+                  <label><input type="radio" name="auth" value="Valid" checked> Valid</label>
+                  <label><input type="radio" name="auth" value="Invalid"> Invalid</label>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-primary" type="submit">Save &amp; generate QR</button>
+            <p id="add-status" class="status-msg hidden"></p>
+          </form>
+        </div>
+      </section>
+
+      <!-- ---------- BULK CSV ---------- -->
+      <section class="tab-panel" id="tab-bulk">
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Bulk upload from CSV</h2>
+            <a href="#" id="template-link">Download CSV template</a>
+          </div>
+          <p>Columns required, in any order: <strong>Event Name, Participant Name, Session, Serial Number, Student ID, Authenticity</strong>. Authenticity should read "Valid" or "Invalid".</p>
+          <div class="dropzone">
+            <div>Choose a CSV file exported from Excel or Google Sheets</div>
+            <input type="file" id="csv-input" accept=".csv">
+          </div>
+          <div id="csv-preview-wrap" class="hidden" style="margin-top:22px;">
+            <p id="csv-count"></p>
+            <div class="table-scroll">
+              <table class="data-table" id="csv-preview-table"></table>
+            </div>
+            <button class="btn btn-primary" id="csv-upload-btn" style="margin-top:16px;">Upload records</button>
+            <p id="csv-status" class="status-msg hidden"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- MANAGE ---------- -->
+      <section class="tab-panel" id="tab-manage">
+        <div class="panel">
+          <div class="panel-title">
+            <h2>All certificates</h2>
+            <button class="btn btn-outline" id="zip-all-btn">Download all QR codes (.zip)</button>
+          </div>
+          <div class="toolbar">
+            <input class="search-input" id="manage-search" placeholder="Search by name, ID or serial number">
+            <button class="btn btn-outline" id="refresh-btn">Refresh</button>
+          </div>
+          <p id="manage-status" class="status-msg hidden"></p>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Serial</th><th>Participant</th><th>Event</th><th>Session</th><th>Status</th><th>QR</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="manage-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- QR preview modal -->
+<div id="qr-modal" class="modal-backdrop hidden">
+  <div class="modal-card">
+    <h3 id="qr-modal-title">Certificate saved</h3>
+    <img id="qr-modal-img" alt="QR code">
+    <p class="hero-note mono" id="qr-modal-url" style="word-break:break-all;"></p>
+    <a id="qr-modal-download" class="btn btn-primary" download style="width:100%; justify-content:center; margin-top:8px;">Download PNG</a>
+    <button class="btn btn-outline" id="qr-modal-close" style="width:100%; justify-content:center; margin-top:8px;">Close</button>
+  </div>
+</div>
+
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>

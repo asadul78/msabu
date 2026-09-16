@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify — Certificate Authentication</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="shell">
+  <div class="topbar">
+    <div class="wordmark"><span class="mark">✓</span>Verify</div>
+    <a class="nav-link" href="admin.html">Admin panel</a>
+  </div>
+
+  <div class="hero">
+    <div>
+      <h1>Every certificate,<br>traceable to one record.</h1>
+      <p>Scan the QR code printed on a course certificate, or enter its serial number below, to confirm who it belongs to and that it's genuine.</p>
+
+      <form id="lookup-form" class="lookup">
+        <input id="lookup-input" type="text" placeholder="e.g. MSA-2025-2XVPZ" autocomplete="off" required>
+        <button class="btn btn-primary" type="submit">Verify</button>
+      </form>
+      <p class="hero-note">The serial number is printed under the QR code on the certificate.</p>
+    </div>
+
+    <div class="seal-wrap" aria-hidden="true">
+      <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="120" cy="120" r="108" stroke="#B4483F" stroke-width="2"/>
+        <circle cx="120" cy="120" r="90" stroke="#B4483F" stroke-width="1"/>
+        <path d="M84 122 L110 148 L158 96" stroke="#2F6F5E" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <g font-family="Space Grotesk, sans-serif" font-size="11" fill="#16213A" letter-spacing="3">
+          <text x="120" y="30" text-anchor="middle">AUTHENTIC RECORD</text>
+          <text x="120" y="216" text-anchor="middle">ISSUED &amp; VERIFIED</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-index">01</div>
+      <h3>Scan the code</h3>
+      <p>Every certificate carries a unique QR code linked to one record.</p>
+    </div>
+    <div class="step">
+      <div class="step-index">02</div>
+      <h3>Land on this site</h3>
+      <p>The code opens a verification page for that exact certificate — no app required.</p>
+    </div>
+    <div class="step">
+      <div class="step-index">03</div>
+      <h3>See the record</h3>
+      <p>Event, participant, session and status are shown instantly, straight from the issuer's records.</p>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    Certificate verification portal.
+  </footer>
+</div>
+
+<script type="module">
+  import { SITE_BASE_URL } from "./js/firebase-config.js";
+  const form = document.getElementById("lookup-form");
+  const input = document.getElementById("lookup-input");
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const id = input.value.trim();
+    if (!id) return;
+    window.location.href = `validate.html?id=${encodeURIComponent(id)}`;
+  });
+</script>
+</body>
+</html>
